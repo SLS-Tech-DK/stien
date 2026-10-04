@@ -1,0 +1,1945 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1f6feb">
+<title>Stien — farlige huller på Københavns cykelstier</title>
+<meta name="description" content="Offentligt kort over rapporterede huller på Københavns cykelstier. Cyklister hjælper cyklister.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #faf9f5;
+    --ink: #131313;
+    --muted: #5a5a55;
+    --line: #e2e1d9;
+    --card: #ffffff;
+    --red: #c0392b;
+    --orange: #d97706;
+    --green: #2d7a2d;
+    --blue: #1f6feb;
+    --blue-dark: #1856bf;
+    --yellow-soft: #fff8e1;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,0.12), 0 12px 32px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea, select { font-family: inherit; font-size: 16px; }
+
+  /* === HEADER === */
+  header.app-header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 500;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .brand-mark {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .brand-mark::before {
+    content: "·";
+    color: var(--blue);
+    margin-right: 4px;
+    font-weight: 900;
+  }
+  .brand-tag {
+    color: var(--muted);
+    font-size: 13px;
+    display: none;
+  }
+  @media (min-width: 700px) {
+    .brand-tag { display: inline; }
+  }
+  nav.app-nav {
+    display: flex;
+    gap: 4px;
+  }
+  nav.app-nav button {
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  nav.app-nav button.active {
+    background: var(--ink);
+    color: white;
+  }
+
+  /* === MAIN === */
+  main {
+    position: relative;
+    height: calc(100vh - 57px);
+    overflow: hidden;
+  }
+  .view {
+    display: none;
+    height: 100%;
+    overflow: auto;
+  }
+  .view.active {
+    display: block;
+  }
+
+  /* === MAP VIEW === */
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+  .map-overlay {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    pointer-events: auto;
+  }
+  .map-overlay-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .map-overlay-text strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .filter-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .chip.active {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+
+  /* === FAB === */
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 999px;
+    padding: 16px 22px;
+    font-size: 16px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(31,111,235,0.4);
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fab:active { transform: scale(0.96); }
+  .fab-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  /* === LIST VIEW === */
+  .view.list-view {
+    padding: 20px;
+    background: var(--bg);
+  }
+  .view.list-view .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .list-header h2 { margin: 0; font-size: 22px; }
+  .report-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+  }
+  .report-card:hover { box-shadow: var(--shadow); }
+  .report-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    background: var(--line);
+    flex-shrink: 0;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+  }
+  .report-thumb.no-photo {
+    background: var(--bg);
+    border: 1px dashed var(--line);
+  }
+  .report-body { flex: 1; min-width: 0; }
+  .report-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .report-meta {
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sev-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .sev-let { background: #e8f5e9; color: var(--green); }
+  .sev-moderat { background: #fef3c7; color: var(--orange); }
+  .sev-alvorlig { background: #fee2e2; color: var(--red); }
+  .sev-fixed { background: #e0f2fe; color: var(--blue); }
+
+  /* === ABOUT === */
+  .view.about-view {
+    padding: 32px 20px 80px;
+    background: var(--bg);
+  }
+  .view.about-view .wrap {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .view.about-view h2 {
+    margin: 0 0 12px;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+  }
+  .view.about-view h3 {
+    margin: 28px 0 8px;
+    font-size: 17px;
+  }
+  .view.about-view p { color: var(--muted); }
+  .view.about-view .lead {
+    font-size: 18px;
+    color: var(--ink);
+    margin-bottom: 24px;
+  }
+  .about-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin: 16px 0;
+  }
+
+  /* === ADMIN === */
+  .view.admin-view {
+    padding: 20px;
+    background: var(--bg);
+  }
+  .view.admin-view .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .admin-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .admin-table {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: auto;
+  }
+  table.reports-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.reports-table th {
+    text-align: left;
+    padding: 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  table.reports-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.reports-table tr:last-child td { border-bottom: none; }
+  table.reports-table tr:hover { background: var(--bg); cursor: pointer; }
+  .status-pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-open { background: #fee2e2; color: var(--red); }
+  .status-sent { background: #fef3c7; color: var(--orange); }
+  .status-fixed { background: #e8f5e9; color: var(--green); }
+
+  /* === BUTTONS === */
+  .btn {
+    background: var(--ink);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn.btn-primary { background: var(--blue); }
+  .btn.btn-primary:hover { background: var(--blue-dark); }
+  .btn.btn-secondary {
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .btn.btn-danger { background: var(--red); }
+  .btn.btn-block { width: 100%; justify-content: center; padding: 14px 18px; font-size: 15px; }
+
+  /* === MODAL === */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  @media (min-width: 700px) {
+    .modal-backdrop { align-items: center; }
+  }
+  .modal {
+    background: var(--card);
+    width: 100%;
+    max-width: 540px;
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.25s ease;
+  }
+  @media (min-width: 700px) {
+    .modal {
+      border-radius: 16px;
+      animation: fadeIn 0.2s ease;
+    }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .modal-header {
+    padding: 18px 20px 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .modal-title { margin: 0; font-size: 18px; font-weight: 700; }
+  .modal-close {
+    background: var(--bg);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    font-size: 18px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-body { padding: 18px 20px; }
+  .modal-footer {
+    padding: 14px 20px 20px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  /* === FORM === */
+  .form-group { margin-bottom: 16px; }
+  .form-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+  .form-label .optional {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 12px;
+  }
+  .form-control {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 15px;
+    background: var(--card);
+    color: var(--ink);
+  }
+  .form-control:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(31,111,235,0.15);
+  }
+  textarea.form-control { resize: vertical; min-height: 70px; }
+  .severity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .sev-option {
+    border: 2px solid var(--line);
+    background: var(--card);
+    padding: 14px 8px;
+    border-radius: 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sev-option .sev-emoji { font-size: 22px; display: block; margin-bottom: 4px; }
+  .sev-option .sev-label { font-size: 13px; font-weight: 600; }
+  .sev-option .sev-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sev-option.selected[data-sev="let"] { border-color: var(--green); background: #f0f9f0; }
+  .sev-option.selected[data-sev="moderat"] { border-color: var(--orange); background: #fefaf0; }
+  .sev-option.selected[data-sev="alvorlig"] { border-color: var(--red); background: #fef4f3; }
+  .photo-input-wrap {
+    position: relative;
+  }
+  .photo-input-button {
+    background: var(--bg);
+    border: 2px dashed var(--line);
+    padding: 24px 12px;
+    border-radius: 10px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .photo-input-button:hover { border-color: var(--blue); color: var(--blue); }
+  .photo-input-button .photo-emoji { font-size: 28px; display: block; margin-bottom: 4px; }
+  .photo-input { display: none; }
+  .photo-preview {
+    position: relative;
+    margin-top: 8px;
+  }
+  .photo-preview img {
+    width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+  .photo-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    font-size: 16px;
+  }
+  .location-display {
+    background: var(--bg);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .location-display strong { color: var(--ink); font-weight: 600; }
+  .location-display .relocate {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--blue);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  /* === DETAIL MODAL === */
+  .detail-photo {
+    width: calc(100% + 40px);
+    margin: -18px -20px 16px;
+    aspect-ratio: 4/3;
+    background: var(--bg);
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+  }
+  .detail-photo.no-photo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 56px;
+    aspect-ratio: 16/6;
+  }
+  .detail-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .detail-description {
+    color: var(--muted);
+    margin: 14px 0;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .verify-box {
+    background: var(--yellow-soft);
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 14px;
+    margin: 14px 0;
+  }
+  .verify-count {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--orange);
+    margin-bottom: 4px;
+  }
+  .verify-text {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* === WELCOME === */
+  .welcome-emoji {
+    font-size: 56px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .welcome-bullets {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0;
+  }
+  .welcome-bullets li {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .welcome-bullets li:last-child { border-bottom: none; }
+  .welcome-bullets li .num {
+    background: var(--blue);
+    color: white;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* === TOAST === */
+  .toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 1500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    box-shadow: var(--shadow-lg);
+    max-width: 90vw;
+  }
+  .toast.show { opacity: 1; }
+
+  /* === LEAFLET CUSTOMIZATION === */
+  .leaflet-control-attribution {
+    font-size: 10px !important;
+    background: rgba(255,255,255,0.85) !important;
+  }
+  .marker-pin {
+    width: 28px;
+    height: 28px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .marker-pin .marker-inner {
+    transform: rotate(45deg);
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .marker-let { background: var(--green); }
+  .marker-moderat { background: var(--orange); }
+  .marker-alvorlig { background: var(--red); }
+  .marker-fixed { background: var(--blue); opacity: 0.7; }
+  .crosshair-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    z-index: 450;
+    pointer-events: none;
+    font-size: 36px;
+  }
+
+  /* === EMPTY === */
+  .empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+  .empty-state h3 { color: var(--ink); margin: 0 0 8px; }
+  .empty-state p { margin: 0; }
+
+  /* === ADMIN BANNER === */
+  .admin-banner {
+    background: var(--ink);
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .admin-banner a {
+    color: #ffd966;
+    text-decoration: underline;
+    margin-left: 12px;
+  }
+  .config-warning {
+    background: var(--yellow-soft);
+    border: 1px solid #fde68a;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: #8b6914;
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">Stien</span>
+    <span class="brand-tag">cyklister hjælper cyklister</span>
+  </div>
+  <nav class="app-nav">
+    <button data-view="map" class="active">Kort</button>
+    <button data-view="list">Liste</button>
+    <button data-view="about">Om</button>
+  </nav>
+</header>
+
+<main>
+  <!-- MAP VIEW -->
+  <section class="view active" data-view="map">
+    <div id="map"></div>
+    <div class="map-overlay" id="map-overlay">
+      <div class="map-overlay-text">
+        <strong id="report-count">0</strong> huller anmeldt
+      </div>
+      <div class="filter-chips" id="filter-chips">
+        <button class="chip active" data-filter="all">Alle</button>
+        <button class="chip" data-filter="alvorlig">Alvorlige</button>
+        <button class="chip" data-filter="open">Ikke lavet</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIST VIEW -->
+  <section class="view" data-view="list">
+    <div class="wrap">
+      <div class="list-header">
+        <h2>Anmeldte huller</h2>
+        <div class="filter-chips">
+          <button class="chip active" data-list-filter="all">Alle</button>
+          <button class="chip" data-list-filter="alvorlig">Alvorlige</button>
+          <button class="chip" data-list-filter="open">Ikke lavet</button>
+          <button class="chip" data-list-filter="fixed">Lavet</button>
+        </div>
+      </div>
+      <div id="list-container"></div>
+    </div>
+  </section>
+
+  <!-- ABOUT VIEW -->
+  <section class="view about-view" data-view="about">
+    <div class="wrap">
+      <h2>Om Stien</h2>
+      <p class="lead">Stien er et cyklist-fælles kort over farlige huller på Københavns cykelstier. Vi laver synligt, hvad kommunen har gemt i et lukket system.</p>
+
+      <div class="about-card">
+        <h3>Hvorfor</h3>
+        <p>Et hul på Tagensvej. Et på Amager Strand. Et på Nørrebrogade. Cyklister anmelder dem til kommunen via "Giv et Praj" — og hører aldrig fra dem igen. Hullerne ligger der i måneder. Folk styrter. Stien gør det offentligt: hvor er hullerne, hvor længe har de ligget, hvor mange har bekræftet dem.</p>
+      </div>
+
+      <div class="about-card">
+        <h3>Sådan virker det</h3>
+        <ul>
+          <li>Cykler du forbi et farligt hul? Tryk <strong>+ Anmeld</strong>, tag et foto, og marker det på kortet.</li>
+          <li>Andre cyklister kan bekræfte hullet ved at trykke "Jeg har også set det her".</li>
+          <li>Anmeldelser samles og sendes videre til kommunen jævnligt — så hullerne lukkes hurtigere.</li>
+        </ul>
+      </div>
+
+      <div class="about-card">
+        <h3>Privatliv</h3>
+        <p>Stien er anonym. Du behøver ikke at oprette en konto eller logge ind. Telefonnumre bruges kun til at undgå spam (hashed lokalt) — vi ringer aldrig til dig.</p>
+      </div>
+
+      <div class="about-card">
+        <h3>Kontakt</h3>
+        <p>Stien drives som et open civic-tech projekt. Spørgsmål eller forslag? Skriv til <strong>hello@stien.dk</strong>.</p>
+      </div>
+
+      <div class="about-card">
+        <h3>Tal at huske</h3>
+        <p>Cyklen er et trafikoffer der koster det danske samfund — ifølge DTU TERESA — gennemsnitligt ~7 mio kr per alvorligt tilskadekommen via værdi-af-statistisk-liv. En lapning koster typisk 5–50.000 kr. Stien hjælper kommunen med at finde hullerne, før de bliver til skader.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN VIEW -->
+  <section class="view admin-view" data-view="admin">
+    <div class="wrap">
+      <div class="admin-banner">
+        ADMIN-VIEW · kun for dig
+        <a href="#" onclick="exitAdmin(event)">Forlad admin</a>
+      </div>
+      <div class="admin-header">
+        <div>
+          <h2 style="margin:0">Anmeldelser</h2>
+          <p style="margin:4px 0 0;color:var(--muted);font-size:14px" id="admin-stats">0 total</p>
+        </div>
+        <div class="admin-actions">
+          <button class="btn btn-secondary" onclick="exportCSV()">CSV-eksport</button>
+          <button class="btn btn-secondary" onclick="exportGeoJSON()">GeoJSON-eksport</button>
+          <button class="btn btn-secondary" onclick="copyKommuneMail()">Kopier mail-skabelon</button>
+        </div>
+      </div>
+      <div id="config-warning"></div>
+      <div class="admin-table">
+        <table class="reports-table" id="admin-table">
+          <thead>
+            <tr>
+              <th>Dato</th>
+              <th>Sted</th>
+              <th>Kommune</th>
+              <th>Sværhed</th>
+              <th>Bekræftelser</th>
+              <th>Status</th>
+              <th>Foto</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="admin-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<button class="fab" id="fab-report" onclick="openReportFlow()">
+  <span class="fab-icon">+</span>
+  <span>Anmeld hul</span>
+</button>
+
+<!-- REPORT FORM MODAL -->
+<div class="modal-backdrop" id="modal-report">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Anmeld farligt hul</h3>
+      <button class="modal-close" onclick="closeModal('modal-report')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Lokation</label>
+        <div class="location-display" id="location-display">
+          <span style="font-size:20px">📍</span>
+          <div>
+            <strong id="loc-text">Henter din lokation…</strong>
+            <div id="loc-coords" style="font-size:11px;color:var(--muted);margin-top:2px"></div>
+          </div>
+          <button class="relocate" onclick="pickLocationOnMap()">Vælg på kort</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Sværhed</label>
+        <div class="severity-grid">
+          <div class="sev-option" data-sev="let" onclick="selectSeverity('let')">
+            <span class="sev-emoji">🪨</span>
+            <div class="sev-label">Let</div>
+            <div class="sev-desc">Bump, sprække</div>
+          </div>
+          <div class="sev-option selected" data-sev="moderat" onclick="selectSeverity('moderat')">
+            <span class="sev-emoji">⚠️</span>
+            <div class="sev-label">Moderat</div>
+            <div class="sev-desc">Hul, ujævnt</div>
+          </div>
+          <div class="sev-option" data-sev="alvorlig" onclick="selectSeverity('alvorlig')">
+            <span class="sev-emoji">🚨</span>
+            <div class="sev-label">Alvorlig</div>
+            <div class="sev-desc">Krater, styrt-risiko</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Foto <span class="optional">(stærkt anbefalet)</span></label>
+        <div class="photo-input-wrap">
+          <label class="photo-input-button" id="photo-button">
+            <span class="photo-emoji">📷</span>
+            Tag billede eller vælg fra galleri
+            <input type="file" class="photo-input" id="photo-input" accept="image/*" capture="environment">
+          </label>
+          <div class="photo-preview" id="photo-preview" style="display:none">
+            <img id="photo-img" alt="Foto">
+            <button class="photo-remove" onclick="removePhoto()">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Beskrivelse <span class="optional">(valgfri)</span></label>
+        <textarea class="form-control" id="report-description" placeholder="Fx 'lige før lyskrydset' eller 'bredt hul midt på cykelstien'"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Telefonnummer <span class="optional">(valgfri, undgår spam)</span></label>
+        <input type="tel" class="form-control" id="report-phone" placeholder="+45 …" autocomplete="tel">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Vi ringer aldrig. Nummeret hashes lokalt og bruges kun til at undgå dobbelt-anmeldelser.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-report')">Annullér</button>
+      <button class="btn btn-primary" id="submit-report-btn" onclick="submitReport()">Indsend anmeldelse</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION PICKER MODAL -->
+<div class="modal-backdrop" id="modal-picker">
+  <div class="modal" style="max-width:100%;height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <h3 class="modal-title">Tryk på kortet hvor hullet er</h3>
+      <button class="modal-close" onclick="closeModal('modal-picker')">×</button>
+    </div>
+    <div style="flex:1;position:relative">
+      <div id="picker-map" style="width:100%;height:100%"></div>
+      <div class="crosshair-overlay">🎯</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-picker')">Annullér</button>
+      <button class="btn btn-primary" onclick="confirmPickerLocation()">Brug denne lokation</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-backdrop" id="modal-detail">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="detail-title">Hul-anmeldelse</h3>
+      <button class="modal-close" onclick="closeModal('modal-detail')">×</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="shareReport()">Del link</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-detail')">Luk</button>
+    </div>
+  </div>
+</div>
+
+<!-- WELCOME MODAL -->
+<div class="modal-backdrop" id="modal-welcome">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Velkommen til Stien</h3>
+      <button class="modal-close" onclick="closeWelcome()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="welcome-emoji">🚴</div>
+      <p style="text-align:center;font-size:15px;color:var(--muted);margin-top:0">
+        Et fælles kort for cyklister i København.<br>Hjælp med at gøre stierne sikrere.
+      </p>
+      <ol class="welcome-bullets">
+        <li><span class="num">1</span><div><strong>Anmeld huller</strong><br><span style="color:var(--muted);font-size:13px">Cykler du forbi noget farligt? Tryk + nederst og tag et foto.</span></div></li>
+        <li><span class="num">2</span><div><strong>Bekræft andres</strong><br><span style="color:var(--muted);font-size:13px">Tryk på en markør på kortet og bekræft, at du også har set det.</span></div></li>
+        <li><span class="num">3</span><div><strong>Få det fixet</strong><br><span style="color:var(--muted);font-size:13px">Anmeldelser sendes samlet videre til kommunen — så de lukkes hurtigere.</span></div></li>
+      </ol>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary btn-block" onclick="closeWelcome()">Kom i gang</button>
+    </div>
+  </div>
+</div>
+
+<!-- VERIFY MODAL -->
+<div class="modal-backdrop" id="modal-verify">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Bekræft hul</h3>
+      <button class="modal-close" onclick="closeModal('modal-verify')">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="color:var(--muted);margin-top:0">Tak fordi du bekræfter. Vi spørger lige om dit telefonnummer for at undgå spam.</p>
+      <div class="form-group">
+        <label class="form-label">Telefonnummer <span class="optional">(hashes lokalt)</span></label>
+        <input type="tel" class="form-control" id="verify-phone" placeholder="+45 …" autocomplete="tel">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-verify')">Annullér</button>
+      <button class="btn btn-primary" onclick="submitVerify()">Bekræft</button>
+    </div>
+  </div>
+</div>
+
+<!-- PHOTO ZOOM MODAL -->
+<div class="modal-backdrop" id="modal-photo-zoom" style="background:rgba(0,0,0,0.92);align-items:center">
+  <div style="position:relative;max-width:100vw;max-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+    <img id="photo-zoom-img" style="max-width:100%;max-height:100vh;border-radius:8px;display:block">
+    <button class="modal-close" onclick="closeModal('modal-photo-zoom')" style="position:absolute;top:30px;right:30px;background:rgba(255,255,255,0.9);color:var(--ink);width:40px;height:40px;font-size:22px">×</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* ==================================================================
+   CONFIG — sæt URL+key for at swappe fra localStorage til Supabase
+   ================================================================== */
+const CONFIG = {
+  // Lad disse være tomme for at bruge localStorage (staging-mode).
+  // Når du har en Supabase-projekt: indsæt URL og anon-key her, og tabellerne
+  // 'reports' og 'verifications' samt storage-bucket 'photos' skal eksistere.
+  SUPABASE_URL: '',
+  SUPABASE_ANON_KEY: '',
+
+  // Admin-nøgle — sæt til noget hemmeligt før deploy. Brug ?admin=DIN_KEY
+  ADMIN_KEY: 'stien-soren-2026',
+
+  // Kortets default-center og zoom
+  DEFAULT_CENTER: [55.6761, 12.5683],
+  DEFAULT_ZOOM: 13,
+
+  // Foto-compression
+  PHOTO_MAX_DIMENSION: 1600,
+  PHOTO_QUALITY: 0.75,
+  MAX_PHOTOS_LOCALSTORAGE: 50, // sikkerhed mod at sprænge localStorage
+
+  // Kontakter til mail-skabelon (admin) — én pr. kommune
+  KOMMUNE_CONTACTS: {
+    'Københavns Kommune': { email: 'tmf@kk.dk', name: 'Teknik- og Miljøforvaltningen, Københavns Kommune' },
+    'Frederiksberg Kommune': { email: 'bygogemiljoe@frederiksberg.dk', name: 'By- og Miljøområdet, Frederiksberg Kommune' },
+  },
+};
+
+/* ==================================================================
+   STATE
+   ================================================================== */
+let state = {
+  reports: [],
+  view: 'map',
+  filter: 'all',
+  listFilter: 'all',
+  selectedSeverity: 'moderat',
+  map: null,
+  pickerMap: null,
+  pickerMarker: null,
+  markers: {},
+  currentLocation: null,
+  pickedLocation: null,
+  pickedKommune: null,
+  currentPhoto: null,
+  pickingMode: false,
+  selectedReport: null,
+  isAdmin: false,
+};
+
+/* ==================================================================
+   BACKEND ABSTRACTION
+   ================================================================== */
+const Backend = (() => {
+  const useSupabase = CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY;
+  const LS_REPORTS = 'stien_reports_v1';
+  const LS_VERIFICATIONS = 'stien_verifications_v1';
+
+  function lsGet(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+    catch { return fallback; }
+  }
+  function lsSet(key, val) {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch (e) {
+      console.error('localStorage full', e);
+      return false;
+    }
+  }
+
+  // Supabase REST helpers
+  async function sbFetch(path, opts = {}) {
+    const url = `${CONFIG.SUPABASE_URL}/rest/v1${path}`;
+    const headers = {
+      'apikey': CONFIG.SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {}),
+    };
+    const res = await fetch(url, { ...opts, headers });
+    if (!res.ok) throw new Error(`Supabase: ${res.status}`);
+    if (res.status === 204) return null;
+    return res.json();
+  }
+
+  return {
+    mode: useSupabase ? 'supabase' : 'localStorage',
+
+    async list() {
+      if (useSupabase) {
+        const data = await sbFetch('/reports?select=*&order=created_at.desc');
+        return data;
+      }
+      return lsGet(LS_REPORTS, []);
+    },
+
+    async create(report) {
+      report.id = report.id || cryptoRandomId();
+      report.created_at = new Date().toISOString();
+      report.verifications = 1;
+      report.status = 'open';
+      if (useSupabase) {
+        return await sbFetch('/reports', {
+          method: 'POST',
+          body: JSON.stringify(report),
+          headers: { 'Prefer': 'return=representation' },
+        });
+      }
+      const reports = lsGet(LS_REPORTS, []);
+      reports.unshift(report);
+      lsSet(LS_REPORTS, reports);
+      return report;
+    },
+
+    async update(id, updates) {
+      if (useSupabase) {
+        return await sbFetch(`/reports?id=eq.${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates),
+          headers: { 'Prefer': 'return=representation' },
+        });
+      }
+      const reports = lsGet(LS_REPORTS, []);
+      const idx = reports.findIndex(r => r.id === id);
+      if (idx >= 0) {
+        reports[idx] = { ...reports[idx], ...updates };
+        lsSet(LS_REPORTS, reports);
+        return reports[idx];
+      }
+      return null;
+    },
+
+    async verify(reportId, phoneHash) {
+      const verifs = lsGet(LS_VERIFICATIONS, {});
+      const key = `${reportId}_${phoneHash}`;
+      if (verifs[key]) return { duplicate: true };
+      verifs[key] = Date.now();
+      lsSet(LS_VERIFICATIONS, verifs);
+
+      if (useSupabase) {
+        // Insert verification record (will fail if unique constraint on (report_id, phone_hash))
+        try {
+          await sbFetch('/verifications', {
+            method: 'POST',
+            body: JSON.stringify({ report_id: reportId, phone_hash: phoneHash, created_at: new Date().toISOString() }),
+          });
+        } catch (e) {
+          // Likely duplicate constraint — treat as dup
+          return { duplicate: true };
+        }
+        // Read current count, increment, patch back
+        const [current] = await sbFetch(`/reports?id=eq.${reportId}&select=verifications`);
+        const newCount = (current?.verifications || 1) + 1;
+        await sbFetch(`/reports?id=eq.${reportId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ verifications: newCount }),
+        });
+        return { duplicate: false };
+      }
+      const reports = lsGet(LS_REPORTS, []);
+      const idx = reports.findIndex(r => r.id === reportId);
+      if (idx >= 0) {
+        reports[idx].verifications = (reports[idx].verifications || 1) + 1;
+        lsSet(LS_REPORTS, reports);
+      }
+      return { duplicate: false };
+    },
+
+    async uploadPhoto(base64) {
+      // Returns photo_url. In localStorage mode, returns base64 inline.
+      // In Supabase mode, would upload to storage bucket and return public URL.
+      if (useSupabase) {
+        const filename = `${Date.now()}_${cryptoRandomId()}.jpg`;
+        const blob = base64ToBlob(base64);
+        const res = await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/photos/${filename}`, {
+          method: 'POST',
+          headers: {
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'image/jpeg',
+          },
+          body: blob,
+        });
+        if (!res.ok) throw new Error('Photo upload failed');
+        return `${CONFIG.SUPABASE_URL}/storage/v1/object/public/photos/${filename}`;
+      }
+      // localStorage mode — limit total photos
+      const reports = lsGet(LS_REPORTS, []);
+      const withPhotos = reports.filter(r => r.photo_url && r.photo_url.startsWith('data:'));
+      if (withPhotos.length >= CONFIG.MAX_PHOTOS_LOCALSTORAGE) {
+        showToast('Lokalt foto-loft nået — ældste fotos slettes når Supabase tilkobles');
+      }
+      return base64;
+    },
+  };
+})();
+
+function base64ToBlob(base64) {
+  const parts = base64.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+function cryptoRandomId() {
+  return 'r' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36).slice(-4);
+}
+
+async function hashPhone(phone) {
+  if (!phone) return 'anon_' + Math.random().toString(36).slice(2, 8);
+  const normalized = phone.replace(/\s|-|\+/g, '');
+  const buf = new TextEncoder().encode(normalized);
+  const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+/* ==================================================================
+   ROUTING
+   ================================================================== */
+function parseURL() {
+  const params = new URLSearchParams(location.search);
+  return {
+    admin: params.get('admin'),
+    report: params.get('report'),
+    view: params.get('view'),
+  };
+}
+
+function navigate(viewName) {
+  state.view = viewName;
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.dataset.view === viewName));
+  document.querySelectorAll('.app-nav button').forEach(b => b.classList.toggle('active', b.dataset.view === viewName));
+  document.getElementById('fab-report').style.display = (viewName === 'map' || viewName === 'list') ? 'flex' : 'none';
+  if (viewName === 'list') renderList();
+  if (viewName === 'admin') renderAdmin();
+  if (viewName === 'map' && state.map) setTimeout(() => state.map.invalidateSize(), 100);
+}
+
+/* ==================================================================
+   MAP
+   ================================================================== */
+function initMap() {
+  state.map = L.map('map', { zoomControl: false }).setView(CONFIG.DEFAULT_CENTER, CONFIG.DEFAULT_ZOOM);
+  L.control.zoom({ position: 'bottomleft' }).addTo(state.map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap, © CARTO',
+  }).addTo(state.map);
+
+  // Try to center on user
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const ll = [pos.coords.latitude, pos.coords.longitude];
+        // Only recenter if user is in greater CPH region
+        if (ll[0] > 55.5 && ll[0] < 55.85 && ll[1] > 12.3 && ll[1] < 12.8) {
+          state.map.setView(ll, 14);
+        }
+      },
+      () => {},
+      { timeout: 5000 }
+    );
+  }
+}
+
+function severityClass(sev, fixed) {
+  if (fixed) return 'marker-fixed';
+  return 'marker-' + sev;
+}
+
+function severityIcon(sev) {
+  return sev === 'alvorlig' ? '!' : sev === 'moderat' ? '◆' : '•';
+}
+
+function renderMarkers() {
+  if (!state.map) return;
+  // Clear existing
+  Object.values(state.markers).forEach(m => state.map.removeLayer(m));
+  state.markers = {};
+
+  const filtered = filterReports(state.reports, state.filter);
+
+  filtered.forEach(r => {
+    const fixed = r.status === 'fixed';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="marker-pin ${severityClass(r.severity, fixed)}"><span class="marker-inner">${severityIcon(r.severity)}</span></div>`,
+      iconSize: [28, 36],
+      iconAnchor: [14, 36],
+    });
+    const m = L.marker([r.lat, r.lng], { icon }).addTo(state.map);
+    m.on('click', () => openDetail(r.id));
+    state.markers[r.id] = m;
+  });
+
+  document.getElementById('report-count').textContent = filtered.length;
+}
+
+function filterReports(reports, filter) {
+  if (filter === 'all') return reports;
+  if (filter === 'alvorlig') return reports.filter(r => r.severity === 'alvorlig');
+  if (filter === 'open') return reports.filter(r => r.status !== 'fixed');
+  if (filter === 'fixed') return reports.filter(r => r.status === 'fixed');
+  return reports;
+}
+
+/* ==================================================================
+   REPORT FLOW
+   ================================================================== */
+async function openReportFlow() {
+  state.currentPhoto = null;
+  state.pickedLocation = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-button').style.display = 'block';
+  document.getElementById('report-description').value = '';
+  document.getElementById('report-phone').value = localStorage.getItem('stien_last_phone') || '';
+  selectSeverity('moderat');
+  openModal('modal-report');
+  await fetchLocation();
+}
+
+async function fetchLocation() {
+  const txt = document.getElementById('loc-text');
+  const coords = document.getElementById('loc-coords');
+  txt.textContent = 'Henter din lokation…';
+  coords.textContent = '';
+  if (!navigator.geolocation) {
+    txt.textContent = 'Ingen GPS tilgængelig';
+    coords.textContent = 'Tryk "Vælg på kort"';
+    return;
+  }
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+    });
+    state.currentLocation = [pos.coords.latitude, pos.coords.longitude];
+    state.pickedLocation = state.currentLocation;
+    coords.textContent = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${Math.round(pos.coords.accuracy)}m)`;
+    const geo = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+    state.pickedKommune = geo.kommune;
+    txt.textContent = geo.where || 'Lokation fundet';
+    if (geo.kommune) coords.textContent += ' · ' + geo.kommune;
+  } catch (e) {
+    txt.textContent = 'Kunne ikke hente lokation';
+    coords.textContent = 'Tryk "Vælg på kort" i stedet';
+  }
+}
+
+async function pickLocationOnMap() {
+  closeModal('modal-report');
+  openModal('modal-picker');
+
+  // Best-effort: prefer picked location, else current GPS, else CPH default
+  let startCenter = state.pickedLocation || state.currentLocation;
+  if (!startCenter && navigator.geolocation) {
+    try {
+      const pos = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000, enableHighAccuracy: true })
+      );
+      startCenter = [pos.coords.latitude, pos.coords.longitude];
+      state.currentLocation = startCenter;
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!startCenter) startCenter = CONFIG.DEFAULT_CENTER;
+
+  setTimeout(() => {
+    if (!state.pickerMap) {
+      state.pickerMap = L.map('picker-map').setView(startCenter, 17);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap, © CARTO',
+      }).addTo(state.pickerMap);
+    } else {
+      state.pickerMap.invalidateSize();
+      state.pickerMap.setView(startCenter, 17);
+    }
+  }, 100);
+}
+
+async function confirmPickerLocation() {
+  const center = state.pickerMap.getCenter();
+  state.pickedLocation = [center.lat, center.lng];
+  closeModal('modal-picker');
+  openModal('modal-report');
+  const coords = document.getElementById('loc-coords');
+  coords.textContent = `${center.lat.toFixed(5)}, ${center.lng.toFixed(5)} (valgt på kort)`;
+  const geo = await reverseGeocode(center.lat, center.lng);
+  state.pickedKommune = geo.kommune;
+  document.getElementById('loc-text').textContent = geo.where || 'Valgt på kort';
+  if (geo.kommune) coords.textContent += ' · ' + geo.kommune;
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&accept-language=da`);
+    const j = await r.json();
+    const a = j.address || {};
+    const parts = [a.road, a.suburb || a.neighbourhood, a.city || a.town || a.village].filter(Boolean);
+    return {
+      where: parts.join(', '),
+      kommune: a.municipality || null,
+    };
+  } catch (e) {
+    return { where: null, kommune: null };
+  }
+}
+
+function kommuneShort(k) {
+  if (!k) return '—';
+  return k.replace(/ Kommune$/, '');
+}
+
+function selectSeverity(sev) {
+  state.selectedSeverity = sev;
+  document.querySelectorAll('.sev-option').forEach(el => {
+    el.classList.toggle('selected', el.dataset.sev === sev);
+  });
+}
+
+document.getElementById('photo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const compressed = await compressImage(file);
+    state.currentPhoto = compressed;
+    document.getElementById('photo-img').src = compressed;
+    document.getElementById('photo-preview').style.display = 'block';
+    document.getElementById('photo-button').style.display = 'none';
+  } catch (err) {
+    showToast('Kunne ikke behandle billede');
+  }
+});
+
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const max = CONFIG.PHOTO_MAX_DIMENSION;
+        if (width > max || height > max) {
+          if (width > height) { height = height * (max / width); width = max; }
+          else { width = width * (max / height); height = max; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', CONFIG.PHOTO_QUALITY));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function removePhoto() {
+  state.currentPhoto = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-button').style.display = 'block';
+  document.getElementById('photo-input').value = '';
+}
+
+async function submitReport() {
+  if (!state.pickedLocation) {
+    showToast('Vi mangler en lokation');
+    return;
+  }
+  const btn = document.getElementById('submit-report-btn');
+  btn.disabled = true;
+  btn.textContent = 'Indsender…';
+  try {
+    let photoUrl = null;
+    if (state.currentPhoto) {
+      photoUrl = await Backend.uploadPhoto(state.currentPhoto);
+    }
+    const phone = document.getElementById('report-phone').value.trim();
+    if (phone) localStorage.setItem('stien_last_phone', phone);
+    const phoneHash = phone ? await hashPhone(phone) : null;
+    const where = document.getElementById('loc-text').textContent;
+
+    const report = {
+      lat: state.pickedLocation[0],
+      lng: state.pickedLocation[1],
+      severity: state.selectedSeverity,
+      description: document.getElementById('report-description').value.trim(),
+      photo_url: photoUrl,
+      where: where,
+      kommune: state.pickedKommune || null,
+      phone_hash: phoneHash,
+    };
+    const created = await Backend.create(report);
+    state.reports.unshift(created);
+    renderMarkers();
+    closeModal('modal-report');
+    showToast('✓ Hul anmeldt — tak!');
+    if (state.view === 'list') renderList();
+    if (state.view === 'admin') renderAdmin();
+    // Zoom to the new report on map
+    state.map.setView([created.lat, created.lng], 16);
+  } catch (e) {
+    console.error(e);
+    showToast('Noget gik galt');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Indsend anmeldelse';
+  }
+}
+
+/* ==================================================================
+   DETAIL
+   ================================================================== */
+function openDetail(reportId) {
+  const r = state.reports.find(x => x.id === reportId);
+  if (!r) return;
+  state.selectedReport = r;
+  const fixed = r.status === 'fixed';
+  const sevLabel = { let: 'Let', moderat: 'Moderat', alvorlig: 'Alvorlig' }[r.severity];
+  const date = new Date(r.created_at);
+  const daysAgo = Math.floor((Date.now() - date.getTime()) / 86400000);
+
+  let html = '';
+  if (r.photo_url) {
+    html += `<div class="detail-photo" style="background-image:url('${r.photo_url}')" onclick="zoomPhoto('${r.photo_url}')"></div>`;
+  } else {
+    html += `<div class="detail-photo no-photo">📷</div>`;
+  }
+  html += `<div class="detail-meta">`;
+  html += `<span class="sev-badge sev-${r.severity}">${sevLabel}</span>`;
+  if (fixed) html += `<span class="sev-badge sev-fixed">Lavet</span>`;
+  else html += `<span class="status-pill status-open">Ikke lavet</span>`;
+  html += `</div>`;
+  html += `<div style="font-size:15px;font-weight:600;margin-bottom:4px">${r.where || 'Sted ukendt'}</div>`;
+  html += `<div style="font-size:12px;color:var(--muted);margin-bottom:14px">${r.lat.toFixed(5)}, ${r.lng.toFixed(5)} · anmeldt ${daysAgo === 0 ? 'i dag' : daysAgo === 1 ? 'i går' : `for ${daysAgo} dage siden`}</div>`;
+  if (r.description) {
+    html += `<div class="detail-description">"${escapeHtml(r.description)}"</div>`;
+  }
+  if (!fixed) {
+    html += `<div class="verify-box">`;
+    html += `<div class="verify-count">${r.verifications || 1}</div>`;
+    html += `<div class="verify-text">${r.verifications === 1 ? 'person har anmeldt' : 'personer har bekræftet'} dette hul</div>`;
+    html += `<button class="btn btn-primary btn-block" style="margin-top:12px" onclick="startVerify('${r.id}')">+ Jeg har også set det her hul</button>`;
+    html += `</div>`;
+  }
+  document.getElementById('detail-body').innerHTML = html;
+  document.getElementById('detail-title').textContent = `Hul · ${sevLabel}`;
+  openModal('modal-detail');
+}
+
+function startVerify(reportId) {
+  state.verifyingId = reportId;
+  closeModal('modal-detail');
+  document.getElementById('verify-phone').value = localStorage.getItem('stien_last_phone') || '';
+  openModal('modal-verify');
+}
+
+async function submitVerify() {
+  const phone = document.getElementById('verify-phone').value.trim();
+  if (!phone) {
+    showToast('Indtast venligst telefonnummer');
+    return;
+  }
+  localStorage.setItem('stien_last_phone', phone);
+  const phoneHash = await hashPhone(phone);
+  const result = await Backend.verify(state.verifyingId, phoneHash);
+  if (result.duplicate) {
+    showToast('Du har allerede bekræftet dette hul');
+  } else {
+    const r = state.reports.find(x => x.id === state.verifyingId);
+    if (r) r.verifications = (r.verifications || 1) + 1;
+    showToast('✓ Tak for bekræftelsen');
+    renderMarkers();
+  }
+  closeModal('modal-verify');
+}
+
+function shareReport() {
+  if (!state.selectedReport) return;
+  const url = `${location.origin}${location.pathname}?report=${state.selectedReport.id}`;
+  if (navigator.share) {
+    navigator.share({
+      title: 'Farligt hul på Stien',
+      text: `${state.selectedReport.where || 'Hul'} — bekræftet ${state.selectedReport.verifications || 1}x`,
+      url: url,
+    }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('✓ Link kopieret'));
+  }
+}
+
+function zoomPhoto(src) {
+  document.getElementById('photo-zoom-img').src = src;
+  openModal('modal-photo-zoom');
+}
+
+/* ==================================================================
+   LIST VIEW
+   ================================================================== */
+function renderList() {
+  const container = document.getElementById('list-container');
+  const filtered = filterReports(state.reports, state.listFilter);
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🗺️</div>
+        <h3>Ingen anmeldelser endnu</h3>
+        <p>Tryk + nederst for at lave den første.</p>
+      </div>`;
+    return;
+  }
+  let html = '';
+  filtered.forEach(r => {
+    const sevLabel = { let: 'Let', moderat: 'Moderat', alvorlig: 'Alvorlig' }[r.severity];
+    const daysAgo = Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86400000);
+    const fixed = r.status === 'fixed';
+    const thumbStyle = r.photo_url ? `background-image:url('${r.photo_url}')` : '';
+    const thumbClass = r.photo_url ? '' : 'no-photo';
+    html += `
+      <div class="report-card" onclick="openDetail('${r.id}')">
+        <div class="report-thumb ${thumbClass}" style="${thumbStyle}">${r.photo_url ? '' : '📷'}</div>
+        <div class="report-body">
+          <div class="report-title">${escapeHtml(r.where || 'Sted ukendt')}</div>
+          <div class="report-meta">
+            <span class="sev-badge sev-${r.severity}">${sevLabel}</span>
+            ${fixed ? '<span class="sev-badge sev-fixed">Lavet</span>' : ''}
+            <span>${daysAgo === 0 ? 'i dag' : daysAgo === 1 ? 'i går' : `${daysAgo}d siden`}</span>
+            <span>${r.verifications || 1} bekræftelser</span>
+          </div>
+        </div>
+      </div>`;
+  });
+  container.innerHTML = html;
+}
+
+/* ==================================================================
+   ADMIN
+   ================================================================== */
+function renderAdmin() {
+  const tbody = document.getElementById('admin-tbody');
+  // Stats with kommune breakdown
+  const total = state.reports.length;
+  const byK = {};
+  state.reports.forEach(r => {
+    const k = r.kommune || 'Ukendt';
+    byK[k] = (byK[k] || 0) + 1;
+  });
+  const kStats = Object.entries(byK).map(([k, n]) => `${kommuneShort(k)}: ${n}`).join(' · ');
+  document.getElementById('admin-stats').textContent = total === 0 ? '0 total' : `${total} total · ${kStats}`;
+
+  // Config warning if no Supabase
+  const warn = document.getElementById('config-warning');
+  if (Backend.mode === 'localStorage') {
+    warn.innerHTML = `<div class="config-warning"><strong>Staging-mode:</strong> Data ligger kun i denne browser. Sæt SUPABASE_URL + SUPABASE_ANON_KEY i CONFIG øverst i HTML-filen for at gøre det multi-bruger.</div>`;
+  } else {
+    warn.innerHTML = `<div class="config-warning" style="background:#e8f5e9;border-color:var(--green);color:var(--green)"><strong>Live-mode:</strong> Forbundet til Supabase. Anmeldelser fra alle brugere vises her.</div>`;
+  }
+
+  if (state.reports.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Ingen anmeldelser endnu</td></tr>`;
+    return;
+  }
+  let html = '';
+  state.reports.forEach(r => {
+    const date = new Date(r.created_at);
+    const dateStr = date.toLocaleDateString('da-DK', { day: '2-digit', month: 'short' });
+    const sevLabel = { let: 'Let', moderat: 'Moderat', alvorlig: 'Alvorlig' }[r.severity];
+    const status = r.status || 'open';
+    const statusLabel = { open: 'Åben', sent: 'Sendt', fixed: 'Lavet' }[status];
+    html += `
+      <tr onclick="openDetail('${r.id}')">
+        <td>${dateStr}</td>
+        <td>${escapeHtml(r.where || '—')}</td>
+        <td>${escapeHtml(kommuneShort(r.kommune))}</td>
+        <td><span class="sev-badge sev-${r.severity}">${sevLabel}</span></td>
+        <td>${r.verifications || 1}</td>
+        <td><span class="status-pill status-${status}">${statusLabel}</span></td>
+        <td>${r.photo_url ? '✓' : '—'}</td>
+        <td onclick="event.stopPropagation()">
+          <select onchange="updateStatus('${r.id}', this.value)" style="font-size:12px;padding:4px;border:1px solid var(--line);border-radius:4px">
+            <option value="open" ${status==='open'?'selected':''}>Åben</option>
+            <option value="sent" ${status==='sent'?'selected':''}>Sendt til kommunen</option>
+            <option value="fixed" ${status==='fixed'?'selected':''}>Lavet</option>
+          </select>
+        </td>
+      </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+async function updateStatus(id, newStatus) {
+  await Backend.update(id, { status: newStatus });
+  const r = state.reports.find(x => x.id === id);
+  if (r) r.status = newStatus;
+  renderMarkers();
+  showToast('Status opdateret');
+}
+
+function exportCSV() {
+  if (state.reports.length === 0) {
+    showToast('Ingen data at eksportere');
+    return;
+  }
+  const headers = ['id', 'created_at', 'lat', 'lng', 'where', 'kommune', 'severity', 'verifications', 'status', 'description', 'photo_url'];
+  const rows = state.reports.map(r => [
+    r.id,
+    r.created_at,
+    r.lat,
+    r.lng,
+    csvEsc(r.where || ''),
+    csvEsc(r.kommune || ''),
+    r.severity,
+    r.verifications || 1,
+    r.status || 'open',
+    csvEsc(r.description || ''),
+    r.photo_url ? csvEsc(r.photo_url.startsWith('data:') ? '[inline]' : r.photo_url) : '',
+  ]);
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  downloadFile('stien-anmeldelser-' + new Date().toISOString().slice(0,10) + '.csv', csv, 'text/csv');
+}
+
+function exportGeoJSON() {
+  if (state.reports.length === 0) {
+    showToast('Ingen data at eksportere');
+    return;
+  }
+  const geojson = {
+    type: 'FeatureCollection',
+    features: state.reports.map(r => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [r.lng, r.lat] },
+      properties: {
+        id: r.id,
+        severity: r.severity,
+        description: r.description || '',
+        where: r.where || '',
+        kommune: r.kommune || null,
+        verifications: r.verifications || 1,
+        status: r.status || 'open',
+        created_at: r.created_at,
+        photo_url: r.photo_url || null,
+      },
+    })),
+  };
+  downloadFile('stien-anmeldelser-' + new Date().toISOString().slice(0,10) + '.geojson', JSON.stringify(geojson, null, 2), 'application/geo+json');
+}
+
+function copyKommuneMail() {
+  // Group reports by kommune, prompt user if multiple
+  const byKommune = {};
+  state.reports.forEach(r => {
+    const k = r.kommune || 'Ukendt kommune';
+    if (!byKommune[k]) byKommune[k] = [];
+    byKommune[k].push(r);
+  });
+  const kommuner = Object.keys(byKommune);
+  if (kommuner.length === 0) {
+    showToast('Ingen data at sende');
+    return;
+  }
+  let targetKommune;
+  if (kommuner.length === 1) {
+    targetKommune = kommuner[0];
+  } else {
+    const choice = prompt(`Hvilken kommune skal mailen til?\n\n${kommuner.map((k,i) => `${i+1}. ${k} (${byKommune[k].length} anmeldelser)`).join('\n')}\n\nIndtast nummer:`);
+    const idx = parseInt(choice) - 1;
+    if (isNaN(idx) || !kommuner[idx]) return;
+    targetKommune = kommuner[idx];
+  }
+  const reports = byKommune[targetKommune];
+  const contact = CONFIG.KOMMUNE_CONTACTS[targetKommune] || { email: '', name: targetKommune };
+  const alvorlige = reports.filter(r => r.severity === 'alvorlig').length;
+  const bekraefta = reports.filter(r => (r.verifications || 1) >= 3).length;
+  const date = new Date().toLocaleDateString('da-DK');
+  const subj = `Stien — ${reports.length} cyklist-anmeldte huller i ${targetKommune.replace(/ Kommune$/, '')} (${date})`;
+  const body = `Til ${contact.name},\n\nVedhæftet finder I ${reports.length} cyklist-anmeldte huller på cykelstier i ${targetKommune.replace(/ Kommune$/, '')}, indsamlet via Stien.\n\nUd af disse er ${alvorlige} markeret som alvorlige (krater, styrt-risiko) og ${bekraefta} er bekræftet af ≥3 brugere.\n\nJeg vedhæfter både CSV og GeoJSON så I kan importere direkte i jeres systemer.\n\nJeg vil meget gerne tale om, hvordan vi kan strømline overleveringen — fx via direkte integration til jeres anmelde-system eller en månedlig batch.\n\nVenlig hilsen,\nSøren`;
+  const mailto = `mailto:${contact.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+  navigator.clipboard.writeText(body).then(() => showToast('Mail-tekst kopieret · åbner mail-klient'));
+  window.location.href = mailto;
+}
+
+function csvEsc(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ==================================================================
+   ADMIN MODE
+   ================================================================== */
+function checkAdmin() {
+  const params = parseURL();
+  if (params.admin === CONFIG.ADMIN_KEY) {
+    state.isAdmin = true;
+    // Add admin nav button
+    const nav = document.querySelector('.app-nav');
+    if (!nav.querySelector('[data-view="admin"]')) {
+      const btn = document.createElement('button');
+      btn.dataset.view = 'admin';
+      btn.textContent = 'Admin';
+      btn.onclick = () => navigate('admin');
+      nav.appendChild(btn);
+    }
+    document.querySelectorAll('.app-nav button').forEach(b => {
+      b.onclick = () => navigate(b.dataset.view);
+    });
+  }
+}
+
+function exitAdmin(e) {
+  if (e) e.preventDefault();
+  const u = new URL(location.href);
+  u.searchParams.delete('admin');
+  location.href = u.toString();
+}
+
+/* ==================================================================
+   MODALS + UTIL
+   ================================================================== */
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+function closeWelcome() {
+  closeModal('modal-welcome');
+  localStorage.setItem('stien_welcomed', '1');
+}
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ==================================================================
+   INIT
+   ================================================================== */
+async function init() {
+  // Nav events
+  document.querySelectorAll('.app-nav button').forEach(b => {
+    b.onclick = () => navigate(b.dataset.view);
+  });
+  // Filter chips on map
+  document.querySelectorAll('#filter-chips .chip').forEach(c => {
+    c.onclick = () => {
+      document.querySelectorAll('#filter-chips .chip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      state.filter = c.dataset.filter;
+      renderMarkers();
+    };
+  });
+  // Filter chips on list
+  document.querySelectorAll('[data-list-filter]').forEach(c => {
+    c.onclick = () => {
+      document.querySelectorAll('[data-list-filter]').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      state.listFilter = c.dataset.listFilter;
+      renderList();
+    };
+  });
+  // Backdrop click to close
+  document.querySelectorAll('.modal-backdrop').forEach(bg => {
+    bg.addEventListener('click', (e) => {
+      if (e.target === bg) bg.classList.remove('open');
+    });
+  });
+
+  initMap();
+  checkAdmin();
+  state.reports = await Backend.list();
+  renderMarkers();
+
+  // Handle deep-link to specific report
+  const params = parseURL();
+  if (params.report) {
+    setTimeout(() => openDetail(params.report), 400);
+  }
+  if (params.view && ['map', 'list', 'about', 'admin'].includes(params.view)) {
+    navigate(params.view);
+  }
+
+  // Welcome modal
+  if (!localStorage.getItem('stien_welcomed') && !params.report) {
+    setTimeout(() => openModal('modal-welcome'), 500);
+  }
+
+  // Show admin warning in console
+  if (state.isAdmin) {
+    console.log('%cAdmin mode active', 'background:#131313;color:white;padding:4px 8px;border-radius:4px');
+    console.log('Backend mode:', Backend.mode);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
